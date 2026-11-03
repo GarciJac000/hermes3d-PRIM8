@@ -110,8 +110,16 @@ cp .env.example .env
 npm run dev
 ```
 
-Then open `http://localhost:3000` and configure the gateway URL and token in Studio.
-Studio now also persists the selected backend mode (`Hermes`, `Demo`, `Local`, `Hermes3D`, or `Custom`) and
+Then open `http://localhost:3000`. **Demo mode is the default** — Studio auto-starts the mock office
+gateway so Avery, Mika, and Rune appear in the 3D office without Hermes.
+
+Optional upgrades:
+
+- **Gemini:** set `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET`, restart, then use
+  **Sign in with Google** under AI accounts (ChatGPT / Claude / Grok stay Coming soon).
+- **Hermes:** switch the backend to Hermes in Connection settings and run `npm run hermes-adapter`.
+
+Studio persists the selected backend mode (`Demo`, `Hermes`, `Local`, `Hermes3D`, or `Custom`) and
 shows the active backend reported by the connected gateway.
 
 ### Runtime profiles

@@ -1007,7 +1007,7 @@ export const resolveStudioGatewayProfiles = ({
     gateway?.adapterType ??
     gateway?.lastKnownGood?.adapterType ??
     localDefaults?.adapterType ??
-    "hermes";
+    "demo";
 
   const profiles: Partial<Record<StudioGatewayAdapterType, StudioGatewayProfile>> = {
     ...(localDefaults?.profiles ?? {}),

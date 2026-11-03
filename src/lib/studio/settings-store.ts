@@ -99,7 +99,7 @@ const buildEnvGatewayDefaults = (): StudioGatewaySettings | null => {
   const envUrl = process.env.HERMES3D_GATEWAY_URL?.trim();
   const envToken = process.env.HERMES3D_GATEWAY_TOKEN?.trim() ?? "";
   const envAdapterType =
-    normalizeAdapterType(process.env.HERMES3D_GATEWAY_ADAPTER_TYPE) ?? "hermes";
+    normalizeAdapterType(process.env.HERMES3D_GATEWAY_ADAPTER_TYPE) ?? "demo";
 
   const hermesProfile = readPortBasedGatewayProfile("hermes", "HERMES_ADAPTER_PORT");
   const demoProfile = readPortBasedGatewayProfile("demo", "DEMO_ADAPTER_PORT");
@@ -118,14 +118,26 @@ const buildEnvGatewayDefaults = (): StudioGatewaySettings | null => {
     });
   }
 
-  const fallbackProfile = profiles.hermes ?? profiles.demo ?? null;
-  if (!fallbackProfile) return null;
-  const fallbackAdapterType = profiles.hermes ? "hermes" : "demo";
+  const fallbackProfile = profiles.demo ?? profiles.hermes ?? null;
+  if (fallbackProfile) {
+    const fallbackAdapterType = profiles.demo ? "demo" : "hermes";
+    return buildGatewaySettings({
+      adapterType: fallbackAdapterType,
+      url: fallbackProfile.url,
+      token: fallbackProfile.token,
+      profiles,
+    });
+  }
+
+  // Demo-first out-of-box defaults when no Hermes/demo ports are configured.
+  const demoUrl = `ws://localhost:${DEFAULT_LOCAL_GATEWAY_PORT}`;
   return buildGatewaySettings({
-    adapterType: fallbackAdapterType,
-    url: fallbackProfile.url,
-    token: fallbackProfile.token,
-    profiles,
+    adapterType: "demo",
+    url: demoUrl,
+    token: "",
+    profiles: {
+      demo: buildLocalProfile(demoUrl),
+    },
   });
 };
 

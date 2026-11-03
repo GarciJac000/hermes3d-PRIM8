@@ -1,35 +1,38 @@
 /**
- * PrerequisitesStep — Tells users what they need before connecting.
+ * PrerequisitesStep — Demo-first setup checklist for new users.
  */
 import { CheckCircle2, ExternalLink } from "lucide-react";
 
 const prerequisites = [
-  {
-    label: "Hermes API reachable",
-    detail: "Defaults to http://localhost:8642, override with HERMES_API_URL",
-  },
-  {
-    label: "Gateway adapter running",
-    detail: "Start with: npm run hermes-adapter",
-    command: "npm run hermes-adapter",
-  },
-  {
-    label: "Gateway URL and token",
-    detail: "Found in ~/.hermes/hermes.json or your remote setup",
-  },
   {
     label: "Node.js 20+",
     detail: "Required for running Hermes3D locally",
     link: "https://nodejs.org",
     linkLabel: "Download Node.js",
   },
+  {
+    label: "Demo office (default)",
+    detail:
+      "npm run dev auto-starts the mock gateway with Avery, Mika, and Rune — no Hermes required",
+    command: "npm run dev",
+  },
+  {
+    label: "Optional: Sign in with Google",
+    detail:
+      "Connect Gemini for live model replies. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET",
+  },
+  {
+    label: "Optional: Hermes backend",
+    detail: "For full agent orchestration later: npm run hermes-adapter",
+    command: "npm run hermes-adapter",
+  },
 ] as const;
 
 export const PrerequisitesStep = () => (
   <div className="space-y-2.5">
     <p className="text-[13px] leading-5 text-white/70">
-      Make sure you have these ready before connecting. If you already have
-      Hermes running, you can skip this step.
+      You can explore the 3D office immediately in Demo mode. Hermes and provider accounts are
+      optional upgrades.
     </p>
 
     <div className="space-y-1.5">

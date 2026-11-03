@@ -109,14 +109,24 @@ These methods currently route through the existing gateway/runtime session model
 
 The intent is to keep one stable message/handoff contract while different runtime adapters decide how to deliver it.
 
+## AI account connect (models)
+
+Demo office can optionally upgrade chat replies via **Sign in with Google → Gemini**.
+
+- Configure `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`
+- Redirect URI: `/api/auth/google/callback`
+- Tokens are stored under `~/.hermes/hermes3d/google-oauth.json`
+- When linked, the demo gateway uses Gemini for `chat.send`; otherwise it stays on scripted mock replies
+
 ## What Is Not Wired Yet
 
 These are not first-class connection profiles yet in this branch:
 
-- Anthropic
+- ChatGPT / OpenAI account connect (Coming soon)
+- Anthropic / Claude account connect (Coming soon)
+- Grok / xAI account connect (Coming soon)
 - Claude Code
-- OpenRouter
-- other provider-native transports
+- OpenRouter as a named Studio profile
 
 Those should land as real adapters, not as buttons that pretend the HTTP runtime seam already understands provider-specific auth and event semantics.
 

@@ -3,10 +3,16 @@
 const http = require("http");
 const { randomUUID } = require("crypto");
 const { WebSocketServer } = require("ws");
+const {
+  DEFAULT_MODEL: GEMINI_DEFAULT_MODEL,
+  generateGeminiReply,
+  getGeminiConnectionStatus,
+} = require("./lib/gemini-client");
 
 const ADAPTER_PORT = parseInt(process.env.DEMO_ADAPTER_PORT || "18789", 10);
 const MAIN_KEY = "main";
-const MODELS = [{ id: "demo/mock-office", name: "Mock Office", provider: "demo" }];
+const DEMO_MODEL = { id: "demo/mock-office", name: "Mock Office", provider: "demo" };
+const AMBIENT_INTERVAL_MS = 18_000;
 
 const agents = new Map([
   [
@@ -89,6 +95,25 @@ function agentListPayload() {
   }));
 }
 
+function listModels() {
+  const models = [DEMO_MODEL];
+  const gemini = getGeminiConnectionStatus();
+  if (gemini.connected) {
+    models.push({
+      id: `google/${GEMINI_DEFAULT_MODEL}`,
+      name: `Gemini (${GEMINI_DEFAULT_MODEL})`,
+      provider: "google",
+    });
+  }
+  return models;
+}
+
+function defaultModelId() {
+  const gemini = getGeminiConnectionStatus();
+  if (gemini.connected) return `google/${GEMINI_DEFAULT_MODEL}`;
+  return DEMO_MODEL.id;
+}
+
 function buildDemoReply(agent, message) {
   const normalized = message.trim();
   const compactMessage = normalized.replace(/\s+/g, " ").trim();
@@ -113,6 +138,60 @@ function buildDemoReply(agent, message) {
         ? "I would translate this into implementation steps, edge cases, and validation."
         : "I would route the work, keep the team aligned, and summarize the next move.";
   return `${opening} Focus: ${focusLine}. ${action}`;
+}
+
+function buildGeminiSystemPrompt(agent) {
+  return [
+    `You are ${agent.name}, the ${agent.role} agent inside Hermes3D's virtual office.`,
+    "Stay in character, keep replies concise (2-5 sentences), and sound like a teammate at a desk.",
+    "You can reference other demo colleagues Avery (Orchestrator), Mika (Research), and Rune (Builder).",
+  ].join(" ");
+}
+
+async function resolveChatReply(agent, message, sessionKey) {
+  const history = getHistory(sessionKey).slice(-8);
+  try {
+    const geminiText = await generateGeminiReply({
+      systemPrompt: buildGeminiSystemPrompt(agent),
+      userMessage: message,
+      history,
+      model: GEMINI_DEFAULT_MODEL,
+    });
+    if (typeof geminiText === "string" && geminiText.trim()) {
+      return { text: geminiText.trim(), source: "gemini" };
+    }
+  } catch (err) {
+    console.warn(
+      "[demo-gateway] Gemini reply failed, falling back to mock:",
+      err instanceof Error ? err.message : err
+    );
+  }
+  return { text: buildDemoReply(agent, message), source: "demo" };
+}
+
+function startAmbientPresenceLoop() {
+  setInterval(() => {
+    if (activeSendEventFns.size === 0) return;
+    const agentIds = [...agents.keys()];
+    if (agentIds.length === 0) return;
+    const pick = agentIds[Math.floor(Math.random() * agentIds.length)];
+    const sessionKey = sessionKeyFor(pick);
+    broadcastEvent({
+      type: "event",
+      event: "presence",
+      payload: {
+        sessions: {
+          recent: [{ key: sessionKey, updatedAt: Date.now() }],
+          byAgent: [{ agentId: pick, recent: [{ key: sessionKey, updatedAt: Date.now() }] }],
+        },
+      },
+    });
+    broadcastEvent({
+      type: "event",
+      event: "heartbeat",
+      payload: { agentId: pick, at: Date.now(), status: "idle" },
+    });
+  }, AMBIENT_INTERVAL_MS);
 }
 
 async function handleMethod(method, params, id, sendEvent) {
@@ -198,7 +277,7 @@ async function handleMethod(method, params, id, sendEvent) {
       return resOk(id, { ok: true });
 
     case "models.list":
-      return resOk(id, { models: MODELS });
+      return resOk(id, { models: listModels() });
 
     case "skills.status":
       return resOk(id, { skills: [{ name: "TASK-MANAGER", status: "installed", version: "1.0.0" }] });
@@ -222,8 +301,10 @@ async function handleMethod(method, params, id, sendEvent) {
           updatedAt: history.length > 0 ? Date.now() : null,
           displayName: "Main",
           origin: { label: agent.name, provider: "demo" },
-          model: settings.model || MODELS[0].id,
-          modelProvider: "demo",
+          model: settings.model || defaultModelId(),
+          modelProvider: String(settings.model || defaultModelId()).startsWith("google/")
+            ? "google"
+            : "demo",
         };
       });
       return resOk(id, { sessions });
@@ -257,7 +338,12 @@ async function handleMethod(method, params, id, sendEvent) {
         ok: true,
         key,
         entry: { thinkingLevel: next.thinkingLevel },
-        resolved: { model: next.model || MODELS[0].id, modelProvider: "demo" },
+        resolved: {
+          model: next.model || defaultModelId(),
+          modelProvider: String(next.model || defaultModelId()).startsWith("google/")
+            ? "google"
+            : "demo",
+        },
       });
     }
 
@@ -275,7 +361,6 @@ async function handleMethod(method, params, id, sendEvent) {
       const runId = typeof p.idempotencyKey === "string" && p.idempotencyKey ? p.idempotencyKey : randomId();
       if (!message) return resOk(id, { status: "no-op", runId });
 
-      const reply = buildDemoReply(agent, message);
       let aborted = false;
       activeRuns.set(runId, {
         runId,
@@ -298,6 +383,12 @@ async function handleMethod(method, params, id, sendEvent) {
         };
 
         try {
+          const { text: reply } = await resolveChatReply(agent, message, sessionKey);
+          if (aborted) {
+            emitChat("aborted", {});
+            return;
+          }
+
           const words = reply.split(" ");
           let partial = "";
           for (const word of words) {
@@ -326,6 +417,10 @@ async function handleMethod(method, params, id, sendEvent) {
                 byAgent: [{ agentId, recent: [{ key: sessionKey, updatedAt: Date.now() }] }],
               },
             },
+          });
+        } catch (err) {
+          emitChat("error", {
+            errorMessage: err instanceof Error ? err.message : "Demo chat failed",
           });
         } finally {
           activeRuns.delete(runId);
@@ -508,9 +603,19 @@ function startAdapter() {
     ws.on("error", () => activeSendEventFns.delete(sendEventFn));
   });
 
+  startAmbientPresenceLoop();
+
   httpServer.listen(ADAPTER_PORT, "127.0.0.1", () => {
+    const gemini = getGeminiConnectionStatus();
     console.log(`[demo-gateway] Listening on ws://localhost:${ADAPTER_PORT}`);
-    console.log("[demo-gateway] No Hermes or Hermes required.");
+    console.log("[demo-gateway] No Hermes required — demo office is ready.");
+    if (gemini.connected) {
+      console.log(
+        `[demo-gateway] Gemini linked via Google (${gemini.email || "signed in"}) model=${gemini.model}`
+      );
+    } else {
+      console.log("[demo-gateway] Gemini not linked yet — using scripted mock replies.");
+    }
   });
 }
 
