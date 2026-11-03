@@ -122,17 +122,22 @@ export const isSoftwareWebGLRenderer = (
   }
 };
 
-let softwareWebGLProbe: boolean | null = null;
+type WebGLProbeResult = {
+  available: boolean;
+  software: boolean;
+};
+
+let webGLProbe: WebGLProbeResult | null = null;
 
 /**
- * Probes a throwaway WebGL context to learn whether the machine rasterizes
- * in software, BEFORE the main canvas mounts. This lets the initial quality
- * state start at "low" on such machines instead of downgrading after the
- * heavy pipeline has already overloaded (and possibly lost) the context.
+ * Probes a throwaway WebGL context once so render-mode and quality defaults
+ * share the same hardware read before the main canvas mounts.
  */
-export const detectSoftwareWebGL = (): boolean => {
-  if (typeof document === "undefined") return false;
-  if (softwareWebGLProbe !== null) return softwareWebGLProbe;
+export const probeWebGLCapabilities = (): WebGLProbeResult => {
+  if (typeof document === "undefined") {
+    return { available: false, software: false };
+  }
+  if (webGLProbe !== null) return webGLProbe;
   try {
     const canvas = document.createElement("canvas");
     canvas.width = 1;
@@ -141,23 +146,46 @@ export const detectSoftwareWebGL = (): boolean => {
       canvas.getContext("webgl2") ??
       (canvas.getContext("webgl") as WebGLRenderingContext | null);
     if (!context) {
-      softwareWebGLProbe = true;
-      return true;
+      webGLProbe = { available: false, software: false };
+      return webGLProbe;
     }
-    softwareWebGLProbe = isSoftwareWebGLRenderer(context);
+    const software = isSoftwareWebGLRenderer(context);
     context.getExtension("WEBGL_lose_context")?.loseContext();
+    webGLProbe = { available: true, software };
+    return webGLProbe;
   } catch {
-    softwareWebGLProbe = false;
+    webGLProbe = { available: false, software: false };
+    return webGLProbe;
   }
-  return softwareWebGLProbe ?? false;
+};
+
+/** True when a WebGL (or WebGL2) context can be created at all. */
+export const detectWebGLAvailable = (): boolean =>
+  probeWebGLCapabilities().available;
+
+/**
+ * True when WebGL exists but rasterizes in software (SwiftShader, llvmpipe, …),
+ * or when no WebGL context can be created (treated as not GPU-capable for
+ * quality defaults).
+ */
+export const detectSoftwareWebGL = (): boolean => {
+  const probe = probeWebGLCapabilities();
+  if (!probe.available) return true;
+  return probe.software;
 };
 
 /**
  * The quality the office should boot with: the user's stored choice, or a
- * hardware-appropriate default.
+ * hardware-appropriate default. Software GL stays on "low" so the immersive
+ * 3D office can still mount without overloading the context.
  */
 export const resolveInitialGraphicsQuality = (): GraphicsQuality =>
   loadStoredGraphicsQuality() ?? (detectSoftwareWebGL() ? "low" : "balanced");
+
+/** Test-only: clear the cached WebGL probe between cases. */
+export const __resetWebGLProbeForTests = () => {
+  webGLProbe = null;
+};
 
 export const saveGraphicsQuality = (quality: GraphicsQuality) => {
   if (typeof window === "undefined") return;

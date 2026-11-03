@@ -287,11 +287,14 @@ export const GatewayConnectScreen = ({
             Office renderer
           </p>
           <p className="mt-2 text-sm text-foreground/90">
-            Pick before connecting — nothing heavy loads until you do.
+            <span className="font-semibold text-foreground">3D immersive</span> is the default —
+            a living office with camera arrival and agent motion. Pick 2D only as a low-power
+            fallback. Nothing heavy loads until you connect.
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {OFFICE_RENDER_MODE_OPTIONS.map((option) => {
               const selected = renderMode === option.id;
+              const recommended = option.id === "3d";
               return (
                 <button
                   key={option.id}
@@ -307,6 +310,11 @@ export const GatewayConnectScreen = ({
                 >
                   <span className="flex items-center gap-2 text-xs font-semibold text-foreground">
                     {option.label}
+                    {recommended ? (
+                      <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-amber-200">
+                        Default
+                      </span>
+                    ) : null}
                     {selected ? <Check className="h-3.5 w-3.5 text-amber-400" /> : null}
                   </span>
                   <span className="mt-1 block text-xs leading-snug text-muted-foreground">
