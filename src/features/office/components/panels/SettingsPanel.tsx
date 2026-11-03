@@ -11,6 +11,7 @@ import {
   OFFICE_RENDER_MODE_OPTIONS,
   type OfficeRenderMode,
 } from "@/features/office/renderMode";
+import { AiAccountsPanel } from "@/features/ai-accounts/components/AiAccountsPanel";
 
 type SettingsPanelProps = {
   gatewayStatus?: string;
@@ -57,8 +58,8 @@ export function SettingsPanel({
   gatewayStatus,
   gatewayUrl,
   gatewayToken,
-  selectedAdapterType = "hermes",
-  activeAdapterType = "hermes",
+  selectedAdapterType = "demo",
+  activeAdapterType = "demo",
   onGatewayDisconnect,
   onGatewayConnect,
   onGatewayUrlChange,
@@ -240,6 +241,9 @@ export function SettingsPanel({
             </button>
           </div>
         </div>
+      </div>
+      <div className="mt-3 rounded-lg border border-cyan-500/10 bg-black/20 px-4 py-3">
+        <AiAccountsPanel compact />
       </div>
       <div className="mt-3 rounded-lg border border-cyan-500/10 bg-black/20 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
