@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { CheckCircle2, Eye, EyeOff, Wifi, WifiOff } from "lucide-react";
 import { RunningAvatarLoader } from "@/features/agents/components/RunningAvatarLoader";
+import { AiAccountsPanel } from "@/features/ai-accounts/components/AiAccountsPanel";
 
 export type ConnectStepProps = {
   gatewayUrl: string;
@@ -123,17 +124,22 @@ export const ConnectStep = ({
 
       <div className="space-y-1.5 text-[11px] text-white/40">
         <p>
-          <strong className="text-white/60">Local?</strong> Use{" "}
-          <code className="text-white/50">ws://localhost:18789</code>
+          <strong className="text-white/60">Demo (default):</strong>{" "}
+          <code className="text-white/50">ws://localhost:18789</code> — auto-started with{" "}
+          <code className="text-white/50">npm run dev</code>
         </p>
         <p>
           <strong className="text-white/60">Tailscale?</strong> Use{" "}
           <code className="text-white/50">wss://your-host.ts.net</code>
         </p>
         <p>
-          <strong className="text-white/60">SSH tunnel?</strong> Forward port
-          18789 first, then use localhost.
+          <strong className="text-white/60">Hermes later?</strong> Switch to the Hermes backend in
+          Connection settings after onboarding.
         </p>
+      </div>
+
+      <div className="rounded-lg border border-white/8 bg-white/[0.02] px-3 py-3">
+        <AiAccountsPanel compact />
       </div>
     </div>
   );

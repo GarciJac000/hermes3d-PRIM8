@@ -36,8 +36,8 @@ export const WelcomeStep = () => (
         tasks in a shared 3D environment.
       </p>
       <p className="text-sm text-white/60">
-        This wizard will help you connect to your runtime gateway and get
-        started in about two minutes.
+        Demo mode opens a living office immediately. Optionally connect Gemini with Google, or
+        a Hermes gateway later — about two minutes either way.
       </p>
     </div>
 

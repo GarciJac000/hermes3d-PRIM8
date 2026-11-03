@@ -6,6 +6,7 @@ const { createAccessGate } = require("./access-gate");
 const { createGatewayProxy } = require("./gateway-proxy");
 const { assertPublicHostAllowed, resolveHosts } = require("./network-policy");
 const { loadUpstreamGatewaySettings } = require("./studio-settings");
+const { maybeStartDemoGateway } = require("./lib/demo-gateway-child");
 
 const resolvePort = () => {
   const raw = process.env.PORT?.trim() || "3000";
@@ -181,6 +182,14 @@ async function main() {
     console.info("HTTPS mode: self-signed cert in use. You may need to accept a browser security warning once.");
     console.info(`Spotify redirect URI: ${browserUrl}/office`);
   }
+
+  // Demo-first: spawn the mock office gateway alongside Studio in local/dev.
+  await maybeStartDemoGateway({
+    env: process.env,
+    dev,
+    log: (message) => console.info(message),
+    logError: (message) => console.error(message),
+  });
 }
 
 main().catch((err) => {

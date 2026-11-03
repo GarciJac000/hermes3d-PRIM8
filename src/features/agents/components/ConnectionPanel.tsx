@@ -1,6 +1,7 @@
 import type { GatewayStatus } from "@/lib/gateway/GatewayClient";
 import type { StudioGatewayAdapterType } from "@/lib/studio/settings";
 import { X } from "lucide-react";
+import { AiAccountsPanel } from "@/features/ai-accounts/components/AiAccountsPanel";
 import { resolveGatewayStatusBadgeClass, resolveGatewayStatusLabel } from "./colorSemantics";
 
 type ConnectionPanelProps = {
@@ -61,7 +62,7 @@ export const ConnectionPanel = ({
     selectedAdapterType === "hermes"
       ? "Hermes owns provider/account routing behind the gateway."
       : selectedAdapterType === "demo"
-        ? "Demo can seed a local main agent or connect to the mock gateway."
+        ? "Demo seeds Avery, Mika, and Rune and auto-starts the mock office gateway."
         : selectedAdapterType === "hermes3d"
           ? "Hermes3D runtime keeps Hermes3D transcript semantics over direct HTTP."
           : selectedAdapterType === "local"
@@ -174,6 +175,9 @@ export const ConnectionPanel = ({
           {error}
         </p>
       ) : null}
+      <div className="rounded-md border border-border bg-muted/20 px-3 py-3">
+        <AiAccountsPanel compact />
+      </div>
     </div>
   );
 };

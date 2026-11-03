@@ -101,11 +101,7 @@ export const OnboardingWizard = ({
     if (prev) setCurrentStep(prev);
   }, [currentStep]);
 
-  const canGoNext = useMemo(() => {
-    // Connect step requires gateway connection before proceeding
-    if (currentStep === "connect" && !gatewayConnected) return false;
-    return true;
-  }, [currentStep, gatewayConnected]);
+  const canGoNext = true;
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -224,9 +220,7 @@ export const OnboardingWizard = ({
                 onClick={goNext}
                 disabled={!canGoNext}
               >
-                {currentStep === "connect" && !gatewayConnected
-                  ? "Connect first"
-                  : "Next"}
+                {currentStep === "connect" && !gatewayConnected ? "Continue anyway" : "Next"}
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             )}

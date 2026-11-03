@@ -227,8 +227,12 @@ const ITEMS = [
 ];
 const GYM_WORKOUT_LATCH_MS = 60_000;
 const MAIN_AGENT_ID = "main";
-const DEMO_MAIN_SESSION_KEY = buildAgentMainSessionKey(MAIN_AGENT_ID, "main");
-const createDemoMainAgentSeed = (): {
+const DEMO_FLEET_AGENT_IDS = [
+  "demo-orchestrator",
+  "demo-researcher",
+  "demo-builder",
+] as const;
+type DemoSeedAgent = {
   agentId: string;
   name: string;
   runtimeName: string;
@@ -242,21 +246,56 @@ const createDemoMainAgentSeed = (): {
   thinkingLevel: string;
   toolCallingEnabled: boolean;
   showThinkingTraces: boolean;
-} => ({
-  agentId: MAIN_AGENT_ID,
-  name: "Main",
+};
+const createDemoAgentSeed = (params: {
+  agentId: string;
+  name: string;
+  role: string;
+  model: string;
+}): DemoSeedAgent => ({
+  agentId: params.agentId,
+  name: params.name,
   runtimeName: "Hermes3D Demo",
-  identityName: "Main",
-  sessionDisplayName: "Main",
-  role: "assistant",
-  sessionKey: DEMO_MAIN_SESSION_KEY,
-  avatarSeed: MAIN_AGENT_ID,
-  avatarProfile: createDefaultAgentAvatarProfile(MAIN_AGENT_ID),
-  model: "demo/main",
+  identityName: params.name,
+  sessionDisplayName: params.name,
+  role: params.role,
+  sessionKey: buildAgentMainSessionKey(params.agentId, "main"),
+  avatarSeed: params.agentId,
+  avatarProfile: createDefaultAgentAvatarProfile(params.agentId),
+  model: params.model,
   thinkingLevel: "medium",
   toolCallingEnabled: false,
   showThinkingTraces: false,
 });
+/** Offline fallback when Demo is selected but the mock gateway is not up yet. */
+const createDemoFleetSeed = (): DemoSeedAgent[] => [
+  createDemoAgentSeed({
+    agentId: "demo-orchestrator",
+    name: "Avery",
+    role: "Orchestrator",
+    model: "demo/mock-office",
+  }),
+  createDemoAgentSeed({
+    agentId: "demo-researcher",
+    name: "Mika",
+    role: "Research",
+    model: "demo/mock-office",
+  }),
+  createDemoAgentSeed({
+    agentId: "demo-builder",
+    name: "Rune",
+    role: "Builder",
+    model: "demo/mock-office",
+  }),
+];
+const isDemoOfflinePlaceholderFleet = (
+  agents: Array<{ agentId: string }>,
+): boolean => {
+  if (agents.length === 1 && agents[0]?.agentId === MAIN_AGENT_ID) return true;
+  if (agents.length !== DEMO_FLEET_AGENT_IDS.length) return false;
+  const ids = new Set(agents.map((agent) => agent.agentId));
+  return DEMO_FLEET_AGENT_IDS.every((id) => ids.has(id));
+};
 const MAX_HERMES_LOG_ENTRIES = 200;
 const MAX_HERMES_AGENT_OUTPUT_LINES = 12;
 const OFFICE_DANCE_MS = 60_000;
@@ -2443,19 +2482,16 @@ export function OfficeScreen({
     [requestAgentHistoryRefresh],
   );
 
-  // Local patch (2026-08-27): the demo-adapter placeholder seed below sets
-  // agentsLoaded=true while disconnected, so when the (auto-)connect lands a
-  // moment later this effect used to skip hydration and the office stayed
-  // stuck on the lone "Main" placeholder. When connected and the fleet is
-  // still exactly that placeholder, force one reload per connection.
+  // Demo offline seed sets agentsLoaded=true while disconnected. When the
+  // (auto-)connect lands, force one reload so the live gateway roster replaces
+  // the seeded Avery/Mika/Rune (or legacy Main) placeholder fleet.
   const demoPlaceholderReloadRef = useRef(false);
   useEffect(() => {
     if (status !== "connected") {
       demoPlaceholderReloadRef.current = false;
       return;
     }
-    const onlyDemoPlaceholder =
-      state.agents.length === 1 && state.agents[0]?.agentId === MAIN_AGENT_ID;
+    const onlyDemoPlaceholder = isDemoOfflinePlaceholderFleet(state.agents);
     const shouldRecoverFromPlaceholder =
       onlyDemoPlaceholder && !demoPlaceholderReloadRef.current;
     if (agentsLoaded && !shouldRecoverFromPlaceholder) return;
@@ -2489,7 +2525,8 @@ export function OfficeScreen({
       setLoading(false);
       if (stateRef.current.agents.length === 0) {
         if (selectedAdapterType === "demo") {
-          hydrateAgents([createDemoMainAgentSeed()], MAIN_AGENT_ID);
+          const fleet = createDemoFleetSeed();
+          hydrateAgents(fleet, fleet[0]?.agentId ?? MAIN_AGENT_ID);
           setAgentsLoaded(true);
         } else {
           setAgentsLoaded(false);
@@ -2509,7 +2546,8 @@ export function OfficeScreen({
     if (selectedAdapterType !== "demo") return;
     if (status !== "disconnected") return;
     if (state.agents.length > 0) return;
-    hydrateAgents([createDemoMainAgentSeed()], MAIN_AGENT_ID);
+    const fleet = createDemoFleetSeed();
+    hydrateAgents(fleet, fleet[0]?.agentId ?? MAIN_AGENT_ID);
     setAgentsLoaded(true);
   }, [hydrateAgents, selectedAdapterType, state.agents.length, status]);
 

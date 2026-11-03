@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Eye, EyeOff } from "lucide-react";
 import type { GatewayStatus } from "@/lib/gateway/GatewayClient";
 import { isLocalGatewayUrl } from "@/lib/gateway/local-gateway";
@@ -9,6 +9,7 @@ import {
   type OfficeRenderMode,
 } from "@/features/office/renderMode";
 import { RunningAvatarLoader } from "@/features/agents/components/RunningAvatarLoader";
+import { AiAccountsPanel } from "@/features/ai-accounts/components/AiAccountsPanel";
 
 type GatewayConnectScreenProps = {
   gatewayUrl: string;
@@ -55,6 +56,14 @@ export const GatewayConnectScreen = ({
 }: GatewayConnectScreenProps) => {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [showToken, setShowToken] = useState(false);
+  const pendingExploreDemoRef = useRef(false);
+
+  useEffect(() => {
+    if (!pendingExploreDemoRef.current) return;
+    if (selectedAdapterType !== "demo") return;
+    pendingExploreDemoRef.current = false;
+    onConnect();
+  }, [onConnect, selectedAdapterType]);
   const tokenOptional =
     selectedAdapterType === "hermes" ||
     selectedAdapterType === "demo" ||
@@ -116,7 +125,7 @@ export const GatewayConnectScreen = ({
       case "hermes-agent":
         return "Hermes Agent connects straight to a hermes-agent backend's JSON-RPC gateway — no adapter process. Point it at the server root (Studio appends /api/ws) and use the session token, not a dashboard login.";
       case "demo":
-        return "Demo can fall back to a seeded main agent locally, or connect to the bundled mock gateway for streaming replies.";
+        return "Demo is the default. Studio auto-starts the mock office gateway locally so Avery, Mika, and Rune appear without Hermes.";
       case "local":
         return "Local runtime expects a direct HTTP runtime/orchestrator boundary, not a provider catalog.";
       case "hermes3d":
@@ -313,10 +322,11 @@ export const GatewayConnectScreen = ({
       <div className="ui-card px-4 py-5 sm:px-6">
         <div>
           <p className="font-mono text-[10px] font-medium tracking-[0.06em] text-muted-foreground">
-            Remote gateway (recommended)
+            Enter the office
           </p>
           <p className="mt-2 text-sm text-foreground/90">
-            Choose a backend, then connect to its gateway URL.
+            Demo mode is selected by default. Connect to explore the animated office immediately —
+            no Hermes backend required.
           </p>
           <p className="mt-2 font-mono text-[11px] text-muted-foreground">
             Selected backend: {selectedAdapterType} | Active backend: {activeAdapterType}
@@ -328,6 +338,22 @@ export const GatewayConnectScreen = ({
             {selectedAdapterHint}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="ui-btn-primary px-3 py-1.5 text-[11px] font-semibold tracking-[0.05em]"
+              onClick={() => {
+                if (selectedAdapterType === "demo") {
+                  onConnect();
+                  return;
+                }
+                pendingExploreDemoRef.current = true;
+                useDemoPreset();
+              }}
+              disabled={connectDisabled}
+              data-testid="explore-demo-office"
+            >
+              Explore demo office
+            </button>
             <button
               type="button"
               className="ui-btn-secondary px-3 py-1.5 text-[11px] font-semibold tracking-[0.05em]"
@@ -375,22 +401,27 @@ export const GatewayConnectScreen = ({
         {remoteForm}
       </div>
 
+      <div className="ui-card px-4 py-5 sm:px-6">
+        <AiAccountsPanel />
+      </div>
+
       <div className="ui-card px-4 py-4 sm:px-6 sm:py-5">
         <div className="space-y-1.5">
           <p className="font-mono text-[10px] font-semibold tracking-[0.06em] text-muted-foreground">
             Run locally (optional)
           </p>
           <p className="text-sm text-foreground/90">
-            Start a local gateway process on this machine, then connect.
+            Studio auto-starts the demo gateway with <span className="font-mono">npm run dev</span>.
+            Use a separate process only when you need Hermes or a custom port.
           </p>
         </div>
         <div className="mt-3 space-y-3">
           {commandField}
           <div className="rounded-md border border-border bg-muted/30 px-3 py-3">
-            <p className="text-xs font-medium text-foreground">Just want to see the office?</p>
+            <p className="text-xs font-medium text-foreground">Manual demo gateway</p>
             <p className="mt-1 text-xs leading-snug text-muted-foreground">
-              Run <span className="font-mono text-foreground">{localDemoCommand}</span> to start a built-in mock gateway with demo agents.
-              Then choose <span className="font-mono text-foreground">Demo backend</span> and connect.
+              Optional: <span className="font-mono text-foreground">{localDemoCommand}</span> if auto-start is disabled
+              (<span className="font-mono text-foreground">HERMES3D_AUTO_START_DEMO=false</span>).
             </p>
           </div>
           <div className="rounded-md border border-border bg-muted/30 px-3 py-3">
