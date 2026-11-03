@@ -1,7 +1,10 @@
 // Office renderer preference: immersive 3D scene vs. lightweight 2D pixel scene.
 // Persisted in localStorage so the choice survives reloads.
 
-import { detectSoftwareWebGL } from "@/features/retro-office/core/graphicsQuality";
+import {
+  detectWebGLAvailable,
+  detectSoftwareWebGL,
+} from "@/features/retro-office/core/graphicsQuality";
 
 export type OfficeRenderMode = "3d" | "2d";
 
@@ -15,12 +18,12 @@ export const OFFICE_RENDER_MODE_OPTIONS: Array<{
   {
     id: "3d",
     label: "3D immersive",
-    description: "Full Three.js office with shadows and post-processing.",
+    description: "Recommended. Full Three.js office with motion, lighting, and atmosphere.",
   },
   {
     id: "2d",
     label: "2D pixel",
-    description: "Gather-style pixel office. Great for low-power machines.",
+    description: "Low-power fallback. Gather-style pixel office when WebGL is unavailable.",
   },
 ];
 
@@ -41,11 +44,23 @@ export const loadStoredOfficeRenderMode = (): OfficeRenderMode | null => {
 
 /**
  * The mode the office should boot with: the user's stored choice, or a
- * hardware-appropriate default. Machines that rasterize WebGL in software
- * cannot drive the 3D pipeline smoothly, so they default to the pixel office.
+ * hardware-appropriate default.
+ *
+ * Prefer 3D whenever a WebGL context can be created (including software
+ * rasterizers like SwiftShader). Only force 2D when WebGL is unavailable;
+ * software GL pairs with the "low" graphics quality preset instead.
  */
-export const resolveInitialOfficeRenderMode = (): OfficeRenderMode =>
-  loadStoredOfficeRenderMode() ?? (detectSoftwareWebGL() ? "2d" : "3d");
+export const resolveInitialOfficeRenderMode = (): OfficeRenderMode => {
+  const stored = loadStoredOfficeRenderMode();
+  if (stored) return stored;
+  return detectWebGLAvailable() ? "3d" : "2d";
+};
+
+/**
+ * Whether the boot path should prefer low graphics quality for a 3D mount
+ * (software rasterizer). Stored quality still wins when the user picked one.
+ */
+export const shouldPreferLowQualityFor3D = (): boolean => detectSoftwareWebGL();
 
 export const saveOfficeRenderMode = (mode: OfficeRenderMode) => {
   if (typeof window === "undefined") return;

@@ -89,17 +89,27 @@ type OrbitControllerLike = {
   update: () => void;
 };
 
+/** Lower ortho zoom = farther framing used for the first-run arrival fly-in. */
+export const ARRIVAL_START_ZOOM = 26;
+
 export function CameraAnimator({
   presetRef,
   orbitRef,
+  lerpFactor = 0.06,
+  onSettled,
 }: {
   presetRef: MutableRefObject<CameraPreset | null>;
   orbitRef: RefObject<OrbitControllerLike | null>;
+  /** Per-frame lerp toward the active preset (higher = snappier). */
+  lerpFactor?: number;
+  /** Fires once when the active preset finishes settling. */
+  onSettled?: () => void;
 }) {
   const { camera, size } = useThree();
   const targetPositionRef = useRef(new THREE.Vector3());
   const targetLookAtRef = useRef(new THREE.Vector3());
   const directionRef = useRef(new THREE.Vector3());
+  const settledNotifiedRef = useRef(false);
 
   useFrame(() => {
     const preset = presetRef.current;
@@ -128,12 +138,19 @@ export function CameraAnimator({
         .addScaledVector(directionRef.current, distance);
     }
 
-    camera.position.lerp(targetPositionRef.current, 0.06);
-    orbit.target.lerp(targetLookAtRef.current, 0.06);
+    const alpha = Math.min(0.2, Math.max(0.02, lerpFactor));
+    camera.position.lerp(targetPositionRef.current, alpha);
+    orbit.target.lerp(targetLookAtRef.current, alpha);
     orbit.update();
 
-    if (camera.position.distanceTo(targetPositionRef.current) < 0.05) {
+    if (camera.position.distanceTo(targetPositionRef.current) < 0.08) {
       presetRef.current = null;
+      if (!settledNotifiedRef.current) {
+        settledNotifiedRef.current = true;
+        onSettled?.();
+      }
+    } else {
+      settledNotifiedRef.current = false;
     }
   });
 

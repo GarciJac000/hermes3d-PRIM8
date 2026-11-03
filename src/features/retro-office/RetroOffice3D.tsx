@@ -227,6 +227,7 @@ import {
   WallPictures as SceneWallPictures,
 } from "@/features/retro-office/scene/environment";
 import {
+  ARRIVAL_START_ZOOM,
   CAMERA_PRESETS as CAMERA_PRESET_MAP,
   CameraAnimator as CameraPresetAnimator,
   computeOverviewCameraPosition,
@@ -3134,10 +3135,17 @@ export function RetroOffice3D({
     () => computeOverviewCameraPosition(cameraTarget, cameraZoom),
     [cameraTarget, cameraZoom],
   );
+  const arrivalStartPos = useMemo<[number, number, number]>(
+    () => computeOverviewCameraPosition(cameraTarget, ARRIVAL_START_ZOOM),
+    [cameraTarget],
+  );
   const overviewPreset = useMemo(
     () => ({ pos: CAM_POS, target: cameraTarget, zoom: cameraZoom }),
     [CAM_POS, cameraTarget, cameraZoom]
   );
+  const [arrivalOrbitLocked, setArrivalOrbitLocked] = useState(true);
+  const arrivalBoostRef = useRef(1);
+  const arrivalStartedForKeyRef = useRef<string | null>(null);
   const canvasResetKey = useMemo(
     () =>
       [
@@ -5747,11 +5755,27 @@ export function RetroOffice3D({
     cameraPresetRef.current = overviewPreset;
   }, [overviewPreset]);
 
+  // One-shot arrival: start high/far, fly into overview, lock orbit until settled.
+  useEffect(() => {
+    if (arrivalStartedForKeyRef.current === canvasResetKey) return;
+    arrivalStartedForKeyRef.current = canvasResetKey;
+    arrivalBoostRef.current = 1;
+    setArrivalOrbitLocked(true);
+    cameraPresetRef.current = overviewPreset;
+    // Safety unlock if the animator never settles (lost context, etc.).
+    const timeoutId = window.setTimeout(() => setArrivalOrbitLocked(false), 4500);
+    return () => window.clearTimeout(timeoutId);
+  }, [canvasResetKey, overviewPreset]);
+
   useEffect(() => {
     if (officeCenterSignal === lastOfficeCenterSignalRef.current) return;
     lastOfficeCenterSignalRef.current = officeCenterSignal;
     cameraPresetRef.current = overviewPreset;
   }, [officeCenterSignal, overviewPreset]);
+
+  const handleArrivalSettled = useCallback(() => {
+    setArrivalOrbitLocked(false);
+  }, []);
 
   return (
     <div className="relative w-full h-full bg-[#1a1008] font-mono text-white overflow-hidden">
@@ -5782,7 +5806,7 @@ export function RetroOffice3D({
             key={canvasResetKey}
             dpr={[0.85, graphicsQualityConfig.maxDpr]}
             camera={{
-              position: CAM_POS,
+              position: arrivalStartPos,
               fov: SCENE_CAMERA_FOV,
               near: 0.3,
               far: 320,
@@ -5808,7 +5832,11 @@ export function RetroOffice3D({
             <OrbitControls
               ref={orbitRef}
               target={cameraTarget}
-              enabled={followAgentId === null && (!editMode || spaceDown)}
+              enabled={
+                !arrivalOrbitLocked &&
+                followAgentId === null &&
+                (!editMode || spaceDown)
+              }
               enableDamping
               dampingFactor={0.08}
               rotateSpeed={0.6}
@@ -5828,10 +5856,12 @@ export function RetroOffice3D({
             {/* Game loop — no React state, pure ref mutations. */}
             <SceneGameLoop tick={tick} />
 
-            {/* New Idea 2: Camera preset animator. */}
+            {/* New Idea 2: Camera preset animator (+ first-run arrival settle). */}
             <CameraPresetAnimator
               presetRef={cameraPresetRef}
               orbitRef={orbitRef}
+              lerpFactor={arrivalOrbitLocked ? 0.045 : 0.06}
+              onSettled={handleArrivalSettled}
             />
 
             {/* Follow cam: third-person perspective camera trailing the selected agent. */}
@@ -5860,6 +5890,7 @@ export function RetroOffice3D({
               config={graphicsQualityConfig}
               followActive={followAgentId !== null}
               followFocusPointRef={followFocusPointRef}
+              arrivalBoostRef={arrivalBoostRef}
             />
 
             {/* Floor + walls — always visible, no async loading. */}

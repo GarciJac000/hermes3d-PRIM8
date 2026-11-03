@@ -449,7 +449,7 @@ export function SettingsPanel({
         <div className="mt-3 rounded-lg border border-cyan-500/10 bg-black/20 px-4 py-3">
           <div className="text-[11px] font-medium text-white">Office renderer</div>
           <div className="mt-1 text-[10px] text-white/75">
-            Pick the immersive 3D office or the lightweight 2D pixel office.
+            3D immersive is the default. Use 2D pixel only as a low-power fallback.
           </div>
           <div className="mt-3 grid gap-2">
             {OFFICE_RENDER_MODE_OPTIONS.map((option) => {
