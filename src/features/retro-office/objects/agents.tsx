@@ -5,7 +5,18 @@ import * as THREE from "three";
 import { createDefaultAgentAvatarProfile } from "@/lib/avatars/profile";
 import {
   AGENT_SCALE,
+  IDLE_ARM_FIDGET,
+  IDLE_FIDGET_SPEED,
+  IDLE_HEAD_YAW,
+  IDLE_WEIGHT_SHIFT,
+  SIT_LEAN,
+  SIT_TYPE_TAP,
+  TALK_ARM_GESTURE,
+  TALK_NOD,
   WALK_ANIM_SPEED,
+  WALK_ARM_SWING,
+  WALK_BOUNCE,
+  WALK_LEG_SWING,
 } from "@/features/retro-office/core/constants";
 import { toWorld } from "@/features/retro-office/core/geometry";
 import type {
@@ -131,13 +142,15 @@ export const AgentModel = memo(function AgentModel({
 
     const [wx, , wz] = toWorld(agent.x, agent.y);
     pos.current.set(wx, 0, wz);
-    groupRef.current.position.lerp(pos.current, 0.15);
+    // Snappier follow while pathing so walk cycles read more clearly.
+    const followAlpha = agent.state === "walking" ? 0.22 : 0.15;
+    groupRef.current.position.lerp(pos.current, followAlpha);
 
     const targetY = agent.facing;
     let rotDelta = targetY - groupRef.current.rotation.y;
     while (rotDelta > Math.PI) rotDelta -= Math.PI * 2;
     while (rotDelta < -Math.PI) rotDelta += Math.PI * 2;
-    groupRef.current.rotation.y += rotDelta * 0.12;
+    groupRef.current.rotation.y += rotDelta * (agent.state === "walking" ? 0.18 : 0.12);
     const isWorkout = agent.state === "working_out";
     const isDancing = agent.state === "dancing";
     const isJanitor = "role" in agent && agent.role === "janitor";
@@ -145,41 +158,63 @@ export const AgentModel = memo(function AgentModel({
       ? (agent as RenderAgent & JanitorActor).janitorTool
       : undefined;
     const workoutStyle = agent.workoutStyle ?? "lift";
-    const frameValue = agent.frame + (agent.phaseOffset ?? 0) / WALK_ANIM_SPEED;
+    const phaseOffset = agent.phaseOffset ?? 0;
+    const frameValue = agent.frame + phaseOffset / WALK_ANIM_SPEED;
     const walkPhase = Math.sin(frameValue * WALK_ANIM_SPEED);
+    const walkPhaseCos = Math.cos(frameValue * WALK_ANIM_SPEED);
+    const idlePhase = agent.frame * IDLE_FIDGET_SPEED + phaseOffset;
+    const talkingNow = Boolean(showSpeech && speechText?.trim());
     const workoutPhase = Math.sin(
-      agent.frame * 0.18 + (agent.phaseOffset ?? 0),
+      agent.frame * 0.18 + phaseOffset,
     );
     const workoutPushPhase = Math.sin(
-      agent.frame * 0.18 + (agent.phaseOffset ?? 0) + Math.PI / 2,
+      agent.frame * 0.18 + phaseOffset + Math.PI / 2,
     );
-    groupRef.current.rotation.z = 0;
+    const sitTypePhase = Math.sin(agent.frame * 0.32 + phaseOffset);
+    const sitTypeOpp = Math.sin(agent.frame * 0.32 + phaseOffset + Math.PI);
+    const talkGesture = Math.sin(agent.frame * 0.2 + phaseOffset);
+    groupRef.current.rotation.z =
+      agent.state === "walking"
+        ? walkPhaseCos * 0.045
+        : agent.state === "standing"
+          ? Math.sin(idlePhase) * IDLE_WEIGHT_SHIFT
+          : 0;
     groupRef.current.rotation.x =
       agent.state === "sitting"
-        ? -0.15
-        : isDancing
-          ? Math.sin(agent.frame * 0.18 + (agent.phaseOffset ?? 0)) * 0.06
-          : isWorkout
-            ? workoutStyle === "bike"
-              ? 0.18
-              : workoutStyle === "row"
-                ? -0.12 + Math.max(0, workoutPhase) * 0.08
-                : workoutStyle === "stretch"
-                  ? -0.08
-                  : workoutStyle === "run"
-                    ? 0.08
-                    : workoutStyle === "box"
-                      ? 0.04
-                      : 0.02
-            : agent.pingPongUntil
-              ? 0.08
-              : 0;
+        ? -0.15 -
+          (agent.status === "working"
+            ? (0.5 + 0.5 * Math.sin(agent.frame * 0.05 + phaseOffset)) * SIT_LEAN
+            : 0) -
+          (talkingNow ? talkGesture * TALK_NOD * 0.4 : 0)
+        : agent.state === "walking"
+          ? 0.06 + Math.abs(walkPhase) * 0.03
+          : agent.state === "standing"
+            ? talkingNow
+              ? talkGesture * TALK_NOD
+              : Math.sin(idlePhase * 0.7) * IDLE_HEAD_YAW * 0.35
+          : isDancing
+            ? Math.sin(agent.frame * 0.18 + phaseOffset) * 0.06
+            : isWorkout
+              ? workoutStyle === "bike"
+                ? 0.18
+                : workoutStyle === "row"
+                  ? -0.12 + Math.max(0, workoutPhase) * 0.08
+                  : workoutStyle === "stretch"
+                    ? -0.08
+                    : workoutStyle === "run"
+                      ? 0.08
+                      : workoutStyle === "box"
+                        ? 0.04
+                        : 0.02
+              : agent.pingPongUntil
+                ? 0.08
+                : 0;
     const bounce =
       agent.state === "walking"
-        ? Math.sin(frameValue * WALK_ANIM_SPEED) * 0.04
+        ? Math.abs(walkPhase) * WALK_BOUNCE
         : isDancing
           ? 0.03 +
-            Math.abs(Math.sin(agent.frame * 0.22 + (agent.phaseOffset ?? 0))) *
+            Math.abs(Math.sin(agent.frame * 0.22 + phaseOffset)) *
               0.05
           : isWorkout
             ? workoutStyle === "stretch"
@@ -190,8 +225,10 @@ export const AgentModel = memo(function AgentModel({
             : 0;
     const breathe =
       agent.state === "standing" || isWorkout || agent.pingPongUntil
-        ? Math.sin(frameValue * 0.03) * 0.01
-        : 0;
+        ? Math.sin(frameValue * 0.03) * 0.014
+        : agent.state === "sitting"
+          ? Math.sin(frameValue * 0.025) * 0.006
+          : 0;
     groupRef.current.position.y = bounce + breathe;
 
     if (leftArmRef.current) {
@@ -202,7 +239,8 @@ export const AgentModel = memo(function AgentModel({
         leftArmRef.current.rotation.x = -0.22;
         leftArmRef.current.rotation.z = -0.08;
       } else if (agent.state === "walking") {
-        leftArmRef.current.rotation.x = walkPhase * 0.4;
+        leftArmRef.current.rotation.x = walkPhase * WALK_ARM_SWING;
+        leftArmRef.current.rotation.z = -0.06;
       } else if (isDancing) {
         leftArmRef.current.rotation.x =
           -0.8 + Math.sin(agent.frame * 0.22) * 0.9;
@@ -249,7 +287,23 @@ export const AgentModel = memo(function AgentModel({
         leftArmRef.current.rotation.x =
           0.2 + Math.sin(agent.frame * 0.08) * 0.28;
       } else if (agent.state === "sitting") {
-        leftArmRef.current.rotation.x = 0.3;
+        const typing =
+          agent.status === "working" || talkingNow
+            ? Math.max(0, sitTypePhase) * SIT_TYPE_TAP
+            : 0;
+        leftArmRef.current.rotation.x = 0.28 + typing;
+        leftArmRef.current.rotation.z = -0.08;
+      } else if (agent.state === "standing") {
+        if (talkingNow) {
+          leftArmRef.current.rotation.x =
+            -0.15 + Math.max(0, talkGesture) * TALK_ARM_GESTURE;
+          leftArmRef.current.rotation.z = -0.18;
+        } else {
+          leftArmRef.current.rotation.x =
+            Math.sin(idlePhase * 1.1) * IDLE_ARM_FIDGET;
+          leftArmRef.current.rotation.z =
+            -0.04 + Math.cos(idlePhase * 0.8) * 0.04;
+        }
       }
     }
     if (rightArmRef.current) {
@@ -261,7 +315,8 @@ export const AgentModel = memo(function AgentModel({
         rightArmRef.current.rotation.y = 0.18;
         rightArmRef.current.rotation.z = 0.08;
       } else if (agent.state === "walking") {
-        rightArmRef.current.rotation.x = -walkPhase * 0.4;
+        rightArmRef.current.rotation.x = -walkPhase * WALK_ARM_SWING;
+        rightArmRef.current.rotation.z = 0.06;
       } else if (isDancing) {
         rightArmRef.current.rotation.x =
           -0.8 - Math.sin(agent.frame * 0.22) * 0.9;
@@ -308,48 +363,68 @@ export const AgentModel = memo(function AgentModel({
         rightArmRef.current.rotation.x =
           0.08 - Math.sin(agent.frame * 0.08) * 0.16;
       } else if (agent.state === "sitting") {
-        rightArmRef.current.rotation.x = 0.3;
+        const typing =
+          agent.status === "working" || talkingNow
+            ? Math.max(0, sitTypeOpp) * SIT_TYPE_TAP
+            : 0;
+        rightArmRef.current.rotation.x = 0.28 + typing;
+        rightArmRef.current.rotation.z = 0.08;
+      } else if (agent.state === "standing") {
+        if (talkingNow) {
+          rightArmRef.current.rotation.x =
+            -0.08 + Math.max(0, -talkGesture) * TALK_ARM_GESTURE * 0.7;
+          rightArmRef.current.rotation.z = 0.12;
+        } else {
+          rightArmRef.current.rotation.x =
+            Math.sin(idlePhase * 1.1 + 1.2) * IDLE_ARM_FIDGET;
+          rightArmRef.current.rotation.z =
+            0.04 + Math.cos(idlePhase * 0.8 + 0.6) * 0.04;
+        }
       }
     }
     if (leftLegRef.current) {
       leftLegRef.current.rotation.x =
         agent.state === "walking"
-          ? walkPhase * 0.35
-          : isDancing
-            ? Math.sin(agent.frame * 0.22 + (agent.phaseOffset ?? 0)) * 0.35
-            : isWorkout
-              ? workoutStyle === "run"
-                ? workoutPhase * 0.7
-                : workoutStyle === "bike"
-                  ? workoutPhase * 0.82
-                  : workoutStyle === "row"
-                    ? 0.14 + Math.max(0, workoutPhase) * 0.42
-                    : workoutStyle === "stretch"
-                      ? -0.2 + Math.abs(workoutPhase) * 0.08
-                      : workoutStyle === "box"
-                        ? 0.06 + workoutPhase * 0.14
-                        : workoutPhase * 0.18
-              : 0;
+          ? walkPhase * WALK_LEG_SWING
+          : agent.state === "standing"
+            ? Math.sin(idlePhase * 0.55) * 0.04
+            : isDancing
+              ? Math.sin(agent.frame * 0.22 + phaseOffset) * 0.35
+              : isWorkout
+                ? workoutStyle === "run"
+                  ? workoutPhase * 0.7
+                  : workoutStyle === "bike"
+                    ? workoutPhase * 0.82
+                    : workoutStyle === "row"
+                      ? 0.14 + Math.max(0, workoutPhase) * 0.42
+                      : workoutStyle === "stretch"
+                        ? -0.2 + Math.abs(workoutPhase) * 0.08
+                        : workoutStyle === "box"
+                          ? 0.06 + workoutPhase * 0.14
+                          : workoutPhase * 0.18
+                : 0;
     }
     if (rightLegRef.current) {
       rightLegRef.current.rotation.x =
         agent.state === "walking"
-          ? -walkPhase * 0.35
-          : isDancing
-            ? -Math.sin(agent.frame * 0.22 + (agent.phaseOffset ?? 0)) * 0.35
-            : isWorkout
-              ? workoutStyle === "run"
-                ? -workoutPhase * 0.7
-                : workoutStyle === "bike"
-                  ? -workoutPhase * 0.82
-                  : workoutStyle === "row"
-                    ? 0.14 + Math.max(0, -workoutPhase) * 0.42
-                    : workoutStyle === "stretch"
-                      ? -0.12 + Math.abs(workoutPhase) * 0.08
-                      : workoutStyle === "box"
-                        ? 0.06 - workoutPhase * 0.14
-                        : -workoutPhase * 0.18
-              : 0;
+          ? -walkPhase * WALK_LEG_SWING
+          : agent.state === "standing"
+            ? Math.sin(idlePhase * 0.55 + 0.9) * 0.04
+            : isDancing
+              ? -Math.sin(agent.frame * 0.22 + phaseOffset) * 0.35
+              : isWorkout
+                ? workoutStyle === "run"
+                  ? -workoutPhase * 0.7
+                  : workoutStyle === "bike"
+                    ? -workoutPhase * 0.82
+                    : workoutStyle === "row"
+                      ? 0.14 + Math.max(0, -workoutPhase) * 0.42
+                      : workoutStyle === "stretch"
+                        ? -0.12 + Math.abs(workoutPhase) * 0.08
+                        : workoutStyle === "box"
+                          ? 0.06 - workoutPhase * 0.14
+                          : -workoutPhase * 0.18
+                : 0;
     }
 
     const working =

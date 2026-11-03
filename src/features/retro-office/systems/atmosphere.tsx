@@ -362,16 +362,100 @@ function FollowFocusUpdater({
   return null;
 }
 
+/** Seconds for the first-run bloom/vignette boost to ease back to baseline. */
+export const ARRIVAL_ATMOSPHERE_SECONDS = 5;
+
+/**
+ * Drives a short cinematic intensity bump on bloom + vignette after the
+ * office canvas mounts, then eases back to the quality preset.
+ */
+function ArrivalPostFxDriver({
+  bloomBase,
+  vignetteDarknessBase,
+  arrivalBoostRef,
+  bloomIntensityRef,
+  vignetteDarknessRef,
+}: {
+  bloomBase: number;
+  vignetteDarknessBase: number;
+  arrivalBoostRef: MutableRefObject<number>;
+  bloomIntensityRef: MutableRefObject<number>;
+  vignetteDarknessRef: MutableRefObject<number>;
+}) {
+  useFrame((_, delta) => {
+    if (arrivalBoostRef.current > 0) {
+      arrivalBoostRef.current = Math.max(
+        0,
+        arrivalBoostRef.current - delta / ARRIVAL_ATMOSPHERE_SECONDS,
+      );
+    }
+    const boost = arrivalBoostRef.current;
+    bloomIntensityRef.current = bloomBase + boost * 0.55;
+    vignetteDarknessRef.current = vignetteDarknessBase + boost * 0.28;
+  });
+  return null;
+}
+
+function ArrivalBloom({
+  intensityRef,
+}: {
+  intensityRef: MutableRefObject<number>;
+}) {
+  const effectRef = useRef<{ intensity: number } | null>(null);
+  useFrame(() => {
+    if (effectRef.current) {
+      effectRef.current.intensity = intensityRef.current;
+    }
+  });
+  return (
+    <Bloom
+      ref={effectRef as never}
+      mipmapBlur
+      intensity={intensityRef.current}
+      luminanceThreshold={1.05}
+      luminanceSmoothing={0.25}
+    />
+  );
+}
+
+function ArrivalVignette({
+  darknessRef,
+}: {
+  darknessRef: MutableRefObject<number>;
+}) {
+  const effectRef = useRef<{ darkness: number } | null>(null);
+  useFrame(() => {
+    if (effectRef.current) {
+      effectRef.current.darkness = darknessRef.current;
+    }
+  });
+  return (
+    <Vignette
+      ref={effectRef as never}
+      eskil={false}
+      offset={0.26}
+      darkness={darknessRef.current}
+    />
+  );
+}
+
 export function ScenePostFx({
   config,
   followActive,
   followFocusPointRef,
+  arrivalBoostRef,
 }: {
   config: GraphicsQualityConfig;
   followActive: boolean;
   followFocusPointRef: MutableRefObject<THREE.Vector3>;
+  /** 1 → full arrival bump, 0 → settled baseline. Mutated each frame. */
+  arrivalBoostRef?: MutableRefObject<number>;
 }) {
   const dofRef = useRef<DepthOfFieldEffect | null>(null);
+  const bloomIntensityRef = useRef(0.5);
+  const vignetteDarknessRef = useRef(0.55);
+  const localBoostRef = useRef(0);
+  const boostRef = arrivalBoostRef ?? localBoostRef;
   const showDof = followActive && config.followDepthOfField;
 
   if (!config.postProcessing) return null;
@@ -381,6 +465,13 @@ export function ScenePostFx({
       {showDof ? (
         <FollowFocusUpdater dofRef={dofRef} focusPointRef={followFocusPointRef} />
       ) : null}
+      <ArrivalPostFxDriver
+        bloomBase={0.5}
+        vignetteDarknessBase={0.55}
+        arrivalBoostRef={boostRef}
+        bloomIntensityRef={bloomIntensityRef}
+        vignetteDarknessRef={vignetteDarknessRef}
+      />
       <EffectComposer multisampling={0}>
         {config.ambientOcclusion ? (
           <N8AO
@@ -395,12 +486,7 @@ export function ScenePostFx({
           <></>
         )}
         {config.bloom ? (
-          <Bloom
-            mipmapBlur
-            intensity={0.5}
-            luminanceThreshold={1.05}
-            luminanceSmoothing={0.25}
-          />
+          <ArrivalBloom intensityRef={bloomIntensityRef} />
         ) : (
           <></>
         )}
@@ -415,7 +501,7 @@ export function ScenePostFx({
         ) : (
           <></>
         )}
-        <Vignette eskil={false} offset={0.26} darkness={0.55} />
+        <ArrivalVignette darknessRef={vignetteDarknessRef} />
         <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
         {config.smaa ? <SMAA /> : <></>}
       </EffectComposer>
