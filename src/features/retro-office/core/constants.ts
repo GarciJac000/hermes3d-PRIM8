@@ -17,6 +17,23 @@ export const ELEVATION_STEP = 0.08;
 export const WALK_SPEED = 0.3;
 export const WORKING_WALK_SPEED_MULTIPLIER = 3;
 export const WALK_ANIM_SPEED = 0.15;
+/** Stronger contralateral arm swing while agents walk the floor. */
+export const WALK_ARM_SWING = 0.62;
+/** Stronger leg stride while agents walk the floor. */
+export const WALK_LEG_SWING = 0.52;
+/** Vertical bounce amplitude while walking. */
+export const WALK_BOUNCE = 0.055;
+/** Idle weight-shift / fidget rates (radians of agent.frame). */
+export const IDLE_FIDGET_SPEED = 0.045;
+export const IDLE_WEIGHT_SHIFT = 0.035;
+export const IDLE_ARM_FIDGET = 0.12;
+export const IDLE_HEAD_YAW = 0.08;
+/** Desk typing tap amplitude while sitting / working. */
+export const SIT_TYPE_TAP = 0.22;
+export const SIT_LEAN = 0.05;
+/** Talking / huddle gesture amplitude while a speech bubble is shown. */
+export const TALK_ARM_GESTURE = 0.28;
+export const TALK_NOD = 0.045;
 export const AGENT_SCALE = 1.75;
 export const BUMP_FREEZE_MS = 1500;
 export const BUMP_RECOVERY_MS = 1200;
