@@ -18,16 +18,16 @@ Hermes3D is a Next.js 16 frontend (TypeScript, React 19, Three.js, Phaser) for t
 
 ### Running the app
 
-- `npm run dev` starts the dev server on port 3000 via the custom server (`node server/index.js --dev`).
+- `npm run dev` starts the dev server on port 3000 via the custom server (`node server/index.js --dev`). In dev it also auto-starts the bundled demo gateway on `ws://127.0.0.1:18789` unless `HERMES3D_AUTO_START_DEMO` is false.
 - `npm run hermes-adapter` starts the bundled Hermes gateway adapter (`server/hermes-gateway-adapter.js`) on `ws://localhost:18789`. `npm run demo-gateway` starts the mock gateway instead.
-- The app requires a running gateway to show agent data. Without one, the UI loads but shows the gateway connection form. This is expected and not an error.
-- `.env` is copied from `.env.example`; see `README.md` "Configuration" for variable descriptions.
+- The office can render the seeded Avery, Mika, and Rune fleet before the browser finishes connecting to that gateway. A disconnected badge with those three agents on screen is the demo seed, not a missing install.
+- `.env` is copied from `.env.example`; see `README.md` "Configuration" for variable descriptions. Copy it for local runs. Vitest does not require it.
 
 ### Lint, typecheck, and tests
 
-- `npm run lint` — ESLint. The codebase has a small number of pre-existing warnings and one pre-existing error (in `RetroOffice3D.tsx`).
-- `npm run typecheck` — `tsc --noEmit`. Pre-existing type errors exist in some test files (`agentChatPanel-*.test.ts`) due to a stale `onOpenSettings` prop.
-- `npm run test -- --run` — Vitest unit tests (use `--run` for single-run mode). A few pre-existing failures exist.
+- `npm run lint` — ESLint. The codebase has pre-existing warnings and one pre-existing error: `react-hooks/rules-of-hooks` in `src/features/agents/components/GatewayConnectScreen.tsx`.
+- `npm run typecheck` — `tsc --noEmit`. Pre-existing errors are in `tests/unit/demoGatewayChild.test.ts` (`ProcessEnv` requires `NODE_ENV`).
+- `npm run test -- --run` — Vitest unit tests (use `--run` for single-run mode). Pre-existing failures are in `tests/unit/colorSemanticsGuard.test.ts`, `tests/unit/gatewayEnvDefaults.test.ts`, and `tests/unit/studioSettingsRoute.test.ts`.
 - `npm run e2e` — Playwright E2E tests; requires `npx playwright install` first.
 - `npm run smoke:dev-server` — starts the dev server on a random port and verifies HTTP response.
 
